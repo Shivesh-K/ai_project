@@ -1,50 +1,47 @@
 #include "bits/stdc++.h"
 using namespace std;
 
-int originalGraph[40][40], mst[40][40];
+int originalGraph[40][40];
+int mst[40][40];
 int adjMatrixForMST[40][40];
 bool visited[40];
 int parentMST[40];
 int verticesMST[40];
-unordered_map<string, int> mstMap;     // path, cost for that particular mst
-unordered_map<string, int> closedList; // this is our closed List which we have kept to keep track of nodes that
-                                       // have been extended , and can be used to prune away the paths.
-// Each time we update the vertices , we update their parents too
+unordered_map<string, int> mstMap;     // to store cost of already calculated MST
+unordered_map<string, int> closedList; // to track node that are expanded and can be pruned
 
-class Node
+class Vertex
 {
-    /*This class defines the State of the problem. It also defines how the Cities will
-    be stored in the priority_queue*/
 public:
-    int citynum;
-    string pathSoFar;
-    int citiesNotVisited;
-    char name;
+    int cityIndex;
+    string currPath;
+    int citiesToBeVisited;
+    char cityName;
     int heuristicCost;
     int actualCost;
     int totalCost;
     string state; // the state contains the sorted version of pathsofar + the last city visited
     vector<int> citiesLeft;
 
-    bool operator<(Node other) const
+    bool operator<(Vertex other) const
     {
         return this->totalCost > other.totalCost;
     }
 
-    Node() {}
-    Node(
-        int citynum,
-        string pathSoFar,
-        int citiesNotVisited,
-        char name,
+    Vertex() {}
+    Vertex(
+        int cityIndex,
+        string currPath,
+        int citiesToBeVisited,
+        char cityName,
         int heuristicCost,
         int actualCost,
         int totalCost,
         string state,
-        vector<int> citiesLeft) : citynum(citynum),
-                                  pathSoFar(pathSoFar),
-                                  citiesNotVisited(citiesNotVisited),
-                                  name(name),
+        vector<int> citiesLeft) : cityIndex(cityIndex),
+                                  currPath(currPath),
+                                  citiesToBeVisited(citiesToBeVisited),
+                                  cityName(cityName),
                                   heuristicCost(heuristicCost),
                                   actualCost(actualCost),
                                   totalCost(totalCost),
@@ -55,25 +52,23 @@ public:
 
 int nodeTrack = 0;
 
-priority_queue<Node> astar;
+priority_queue<Vertex> pq
 
-class TSP
+    /* Class used to define basic function of TSP */
+    class TSP
 {
-    /* This Class defines the Basic functions for the TSP Problem, like taking the input 
-    and calculating the distance matrix for the cities */
 public:
-    char node[3];
-    int points[40][2], numCities;
+    int points[40][2], cityCount;
 
-    void inputData()
+    void getInput()
     {
-        printf("Enter the number of cities: ");
-        scanf("%d", &numCities);
-        getc_unlocked(stdin);
+        cout << "Enter the number of cities: ";
+        cin >> cityCount;
 
-        printf("Enter city names along with their coordinates:\n");
-        for (int i = 0; i < numCities; ++i)
-            scanf("%s %d %d", node, &points[i][0], &points[i][1]);
+        cout << "Cities will be named alphabetically in order that they are entered.\n";
+        cout << "Enter cities' coordinates (xi yi):\n";
+        for (int i = 0; i < cityCount; ++i)
+            cin >> points[i][0] >> points[i][1];
     }
 
     int calculateDistance(int x1, int y1, int x2, int y2)
@@ -81,16 +76,16 @@ public:
         return int(sqrt(pow(x1 - x2, 2) + pow(y1 - y2, 2)) + 0.5);
     }
 
-    void createOriginalDistanceGraph()
+    void generateGraph()
     {
-        for (int i = 0; i < numCities; i++)
+        for (int i = 0; i < cityCount; i++)
         {
             originalGraph[i][i] = 0;
             adjMatrixForMST[i][i] = 0;
-            for (int j = i + 1; j < numCities; j++)
+            for (int j = i + 1; j < cityCount; j++)
             {
                 originalGraph[i][j] = calculateDistance(points[i][0], points[i][1], points[j][0], points[j][1]);
-                originalGraph[j][i] = originalGraph[i][j]; // this is a Symmetric TSP
+                originalGraph[j][i] = originalGraph[i][j];
                 adjMatrixForMST[i][j] = adjMatrixForMST[j][i] = 0;
                 mst[i][j] = mst[j][i] = INT_MAX;
             }
@@ -103,16 +98,16 @@ int distance(int city1, int city2)
     return originalGraph[city1][city2];
 }
 
+/* This function returns the length of the minimumSpanningTree for the
+    remaining unvisited cities */
 int generateMST(vector<int> vertices, vector<char> nodesLeft)
 {
-    /* This function returns the length of the minimumSpanningTree for the
-    remaining unvisited cities */
     int size = vertices.size();
 
     if (size == 1)
         return 0;
 
-    int pcity[40], pdist[40], minDistance = INT_MAX;
+    int parentCity[40], parentDistance[40], minDistance = INT_MAX;
     vector<int>::iterator it1;
     vector<char>::iterator it2;
     int i = 0;
@@ -123,8 +118,8 @@ int generateMST(vector<int> vertices, vector<char> nodesLeft)
          it1 != vertices.end(), it2 != nodesLeft.end();
          it1++, it2++)
     {
-        pcity[i] = *it1;    // parent city
-        pdist[i] = INT_MAX; // parent distance;
+        parentCity[i] = *it1;
+        parentDistance[i] = INT_MAX;
         cities += *it2;
         i++;
     }
@@ -134,7 +129,7 @@ int generateMST(vector<int> vertices, vector<char> nodesLeft)
     if (mit != mstMap.end())
         return mit->second;
 
-    int newCity = pcity[size - 1]; // making the last city as the newCity for finding the MST
+    int newCity = parentCity[size - 1]; // making the last city as the newCity for finding the MST
     int thisDistance;
     int length = 0, minIndex;
 
@@ -143,27 +138,27 @@ int generateMST(vector<int> vertices, vector<char> nodesLeft)
         minDistance = INT_MAX;
         for (int j = 0; j < m; j++)
         {
-            thisDistance = distance(pcity[j], newCity);
+            thisDistance = distance(parentCity[j], newCity);
 
-            if (thisDistance < pdist[j])
-                pdist[j] = thisDistance;
+            if (thisDistance < parentDistance[j])
+                parentDistance[j] = thisDistance;
 
-            if (pdist[j] < minDistance)
-                minDistance = pdist[j], minIndex = j;
+            if (parentDistance[j] < minDistance)
+                minDistance = parentDistance[j], minIndex = j;
         }
-        newCity = pcity[minIndex];
+        newCity = parentCity[minIndex];
         length += minDistance;
-        pcity[minIndex] = pcity[m - 1];
-        pdist[minIndex] = pdist[m - 1];
+        parentCity[minIndex] = parentCity[m - 1];
+        parentDistance[minIndex] = parentDistance[m - 1];
     }
     mstMap[cities] = length;
     return length;
 }
 
+/* This function calculates the Heuristic value for the remaining path from the current city 
+        to the remaining unvisited cities and back to the source city */
 int calculateHeuristic(vector<int> vertices, vector<char> nodesLeft, int currentCityForExpansion)
 {
-    /* This function calculates the Heuristic value for the remaining path from the current city 
-        to the remaining unvisited cities to the source city */
     int size = vertices.size();
 
     if (size == 0)
@@ -171,14 +166,13 @@ int calculateHeuristic(vector<int> vertices, vector<char> nodesLeft, int current
     else if (size == 1)
         return distance(currentCityForExpansion, vertices[0]) + distance(vertices[0], 0);
 
-    int pcity[40], pdist[40], minDistance = INT_MAX;
+    int parentCtiy[40], parentDistance[40], minDistance = INT_MAX, i = 0;
     string cities;
-    int i = 0;
 
     for (int v : vertices)
     {
-        pcity[i] = v;       // parent city
-        pdist[i] = INT_MAX; // parent distance;
+        parentCtiy[i] = v;
+        parentDistance[i] = INT_MAX;
         i++;
     }
 
@@ -188,10 +182,10 @@ int calculateHeuristic(vector<int> vertices, vector<char> nodesLeft, int current
         thisDistance1,
         thisDistance2;
 
-    for (i = 0; i < size; i++)
+    for (int i = 0; i < size; i++)
     {
-        thisDistance1 = distance(pcity[i], currentCityForExpansion); // this is the distancefrom the unvisited city to the currentCityForExpansion
-        thisDistance2 = distance(pcity[i], 0);                       // this is the distance from the source
+        thisDistance1 = distance(parentCtiy[i], currentCityForExpansion); // this is the distancefrom the unvisited city to the currentCityForExpansion
+        thisDistance2 = distance(parentCtiy[i], 0);                       // this is the distance from the source
 
         if (thisDistance1 < nearestUnvisitedCityDistance)
             nearestUnvisitedCityDistance = thisDistance1;
@@ -203,44 +197,41 @@ int calculateHeuristic(vector<int> vertices, vector<char> nodesLeft, int current
     return mst + nearestToSource + nearestUnvisitedCityDistance;
 }
 
-int optimumCost = INT_MAX;
+int optimumCost = INT_MAX, expandedNodes = 1, totalNumofNodes = 1;
 
-Node createNode(int citynum, string pathSoFar, int citiesNotVisited, char name, int heuristicCost, int aCost, int totalCost, string state, vector<int> citiesLeft)
+/* This function Creates a new City to be explored */
+Vertex createNode(int cityIndex, string currPath, int citiesToBeVisited, char cityName, int heuristicCost, int aCost, int totalCost, string state, vector<int> citiesLeft)
 {
-    /* This function Creates a new City to be explored */
-    Node node(citynum, pathSoFar, citiesNotVisited, name, heuristicCost, aCost, totalCost, state, citiesLeft);
+    Vertex node(cityIndex, currPath, citiesToBeVisited, cityName, heuristicCost, aCost, totalCost, state, citiesLeft);
     return node;
 }
 
-int numExpanded = 1, totalNumofNodes = 1;
-
-string startSearch()
+/* This is the main A* Search Function where the nodes are generated and put on the Priority Queue */
+string aStarSearch()
 {
-    /* This is the main A* Search Function where the nodes are generated and put on the Priority Queue */
-    Node current;
+    Vertex current;
     int hn, tCost, aCost;
-    char name;
+    char cityName;
     vector<int> vertices;
     vector<int> nextUnvisitedCities;
-    vector<char> namesOfCitiesYettoVisit, namesOfCitiesYettoVisit2;
-    string pathSoFar, state, npathSoFar, nstate;
-    string res;
+    vector<char> namesOfCitiesYettoVisit;
+    string currPath, state, npathSoFar, nstate, res;
 
-    while (!astar.empty() && astar.top().totalCost < optimumCost)
+    while (!pq.empty() && pq.top().totalCost < optimumCost)
     {
-        current = astar.top();
-        astar.pop();
+        current = pq.top();
+        pq.pop();
 
-        pathSoFar = current.pathSoFar;
+        currPath = current.currPath;
         state = current.state;
         vertices = current.citiesLeft;
 
-        if (current.citiesNotVisited == 0)
+        if (current.citiesToBeVisited == 0)
         {
-            int tcost = current.actualCost + distance(current.citynum, 0);
+            int tcost = current.actualCost + distance(current.cityIndex, 0);
 
             if (tcost < optimumCost)
-                optimumCost = tcost, res = current.pathSoFar;
+                optimumCost = tcost, res = current.currPath;
 
             continue;
         }
@@ -253,7 +244,7 @@ string startSearch()
         else if (closedList.find(state) == closedList.end())
             closedList[state] = current.totalCost;
 
-        numExpanded++;
+        expandedNodes++;
         for (int next : vertices)
         {
             nextUnvisitedCities.clear();
@@ -269,18 +260,18 @@ string startSearch()
 
             hn = calculateHeuristic(nextUnvisitedCities, namesOfCitiesYettoVisit, next);
 
-            aCost = current.actualCost + distance(current.citynum, next);
+            aCost = current.actualCost + distance(current.cityIndex, next);
             tCost = hn + aCost;
 
-            name = (next > 25 ? 'a' + next - 26 : 'A' + next);
-            npathSoFar = pathSoFar + name;
+            cityName = (next > 25 ? 'a' + next - 26 : 'A' + next);
+            npathSoFar = currPath + cityName;
 
             string temps = npathSoFar;
             sort(temps.begin(), temps.end());
-            nstate = temps + name;
+            nstate = temps + cityName;
 
             totalNumofNodes++;
-            astar.push(createNode(next, npathSoFar, current.citiesNotVisited - 1, name, hn, aCost, tCost, nstate, nextUnvisitedCities));
+            pq.push(createNode(next, npathSoFar, current.citiesToBeVisited - 1, cityName, hn, aCost, tCost, nstate, nextUnvisitedCities));
         }
     }
     return res;
@@ -289,29 +280,31 @@ string startSearch()
 int main()
 {
     TSP tsp;
-    tsp.inputData();
-    tsp.createOriginalDistanceGraph(); // Till now we have the orginal Distance Graph
-    int numCities = tsp.numCities;
+    tsp.getInput();
+    tsp.generateGraph();
 
-    vector<int> v1;
-    vector<char> v2;
+    vector<int> cityIdx;
+    vector<char> cityName;
 
-    for (int i = 1; i < numCities; i++)
+    for (int i = 1; i < tsp.cityCount; i++)
     {
-        v1.push_back(i);
-        v2.push_back(i > 25 ? 'a' + i - 26 : 'A' + i);
+        cityIdx.push_back(i);
+        cityName.push_back(i > 25 ? 'a' + i - 26 : 'A' + i);
     }
 
-    int initialHeuristic = calculateHeuristic(v1, v2, 0);
+    int initialHeuristic = calculateHeuristic(cityIdx, cityName, 0);
 
-    City[nodeTrack++] = createNode(0, "A", numCities - 1, 'A', initialHeuristic, 0, initialHeuristic, "AA", v1);
+    City[nodeTrack++] = createNode(0, "A", tsp.cityCount - 1, 'A', initialHeuristic, 0, initialHeuristic, "AA", cityIdx);
 
-    astar.push(City[0]);
-    string res = startSearch();
-    generateMST(v1, v2);
+    pq.push(City[0]);
+    string res = aStarSearch();
+    generateMST(cityIdx, cityName);
 
-    cout << "\nThe optimumCost is " << optimumCost << " with path " << res + 'A';
-    cout << "\nThe number of nodes expanded are " << numExpanded << " and the total nodes are " << totalNumofNodes;
+    cout << "\nThe optimal cost is " << optimumCost << " with path ";
+    for (char ch : res)
+        cout << ch << " -> ";
+    cout << "A";
+    cout << "\nThe number of nodes that were expanded are " << expandedNodes << " and the total nodes are " << totalNumofNodes;
 
     return 0;
 }
