@@ -1,4 +1,6 @@
 #include "bits/stdc++.h"
+#define vii vector<int>
+#define vc vector<char>
 using namespace std;
 
 int originalGraph[40][40];
@@ -13,19 +15,21 @@ unordered_map<string, int> closedList; // to track node that are expanded and ca
 class Vertex
 {
 public:
+
     int cityIndex;
     string currPath;
     int citiesToBeVisited;
     char cityName;
-    int heuristicCost;
-    int actualCost;
-    int totalCost;
+    int hc;
+    int ac;
+    int tc;
     string state; // the state contains the sorted version of pathsofar + the last city visited
-    vector<int> citiesLeft;
+   
+    vii citiesLeft;
 
     bool operator<(Vertex other) const
     {
-        return this->totalCost > other.totalCost;
+        return this->tc > other.tc;
     }
 
     Vertex() {}
@@ -34,17 +38,17 @@ public:
         string currPath,
         int citiesToBeVisited,
         char cityName,
-        int heuristicCost,
-        int actualCost,
-        int totalCost,
+        int hc,
+        int ac,
+        int tc,
         string state,
-        vector<int> citiesLeft) : cityIndex(cityIndex),
+        vii citiesLeft) : cityIndex(cityIndex),
                                   currPath(currPath),
                                   citiesToBeVisited(citiesToBeVisited),
                                   cityName(cityName),
-                                  heuristicCost(heuristicCost),
-                                  actualCost(actualCost),
-                                  totalCost(totalCost),
+                                  hc(hc),
+                                  ac(ac),
+                                  tc(tc),
                                   state(state),
                                   citiesLeft(citiesLeft) {}
 
@@ -52,10 +56,10 @@ public:
 
 int nodeTrack = 0;
 
-priority_queue<Vertex> pq
+priority_queue<Vertex> pq;
 
     /* Class used to define basic function of TSP */
-    class TSP
+class TSP
 {
 public:
     int points[40][2], cityCount;
@@ -93,13 +97,15 @@ public:
     }
 };
 
-int distance(int city1, int city2)
-{
-    return originalGraph[city1][city2];
-}
+int distance(long int c1, long int c2)
 
-/* This function returns the length of the minimumSpanningTree for the
-    remaining unvisited cities */
+{
+    return originalGraph[c1][c2];
+}
+   
+/*
+    below function is used to find the length of the MST in the unvisited cities
+*/
 int generateMST(vector<int> vertices, vector<char> nodesLeft)
 {
     int size = vertices.size();
@@ -108,9 +114,13 @@ int generateMST(vector<int> vertices, vector<char> nodesLeft)
         return 0;
 
     int parentCity[40], parentDistance[40], minDistance = INT_MAX;
-    vector<int>::iterator it1;
-    vector<char>::iterator it2;
-    int i = 0;
+   
+    vii ::iterator it1;
+   
+    vc ::iterator it2;
+   
+    int it = 0;
+   
     string cities;
     sort(nodesLeft.begin(), nodesLeft.end());
 
@@ -118,19 +128,21 @@ int generateMST(vector<int> vertices, vector<char> nodesLeft)
          it1 != vertices.end(), it2 != nodesLeft.end();
          it1++, it2++)
     {
-        parentCity[i] = *it1;
-        parentDistance[i] = INT_MAX;
+        parentCity[it] = *it1;
+        parentDistance[it] = INT_MAX;
         cities += *it2;
-        i++;
+        it++;
     }
 
-    auto mit = mstMap.find(cities); // iterator for the hash map for the MST
-                                    // so that we don't have to calculate the MST length again and again for each path.
+    auto mit = mstMap.find(cities); // hash map iterator for minimum spanning tree like dynamic programming
+   
     if (mit != mstMap.end())
         return mit->second;
 
-    int newCity = parentCity[size - 1]; // making the last city as the newCity for finding the MST
-    int thisDistance;
+    int newCity = parentCity[size - 1]; // assigning last city as new node in minimum spanning tree
+   
+    int newdis;
+   
     int length = 0, minIndex;
 
     for (int m = size - 1; m > 0; m--)
@@ -138,10 +150,10 @@ int generateMST(vector<int> vertices, vector<char> nodesLeft)
         minDistance = INT_MAX;
         for (int j = 0; j < m; j++)
         {
-            thisDistance = distance(parentCity[j], newCity);
+            newdis = distance(parentCity[j], newCity);
 
-            if (thisDistance < parentDistance[j])
-                parentDistance[j] = thisDistance;
+            if (newdis < parentDistance[j])
+                parentDistance[j] = newdis;
 
             if (parentDistance[j] < minDistance)
                 minDistance = parentDistance[j], minIndex = j;
@@ -155,8 +167,9 @@ int generateMST(vector<int> vertices, vector<char> nodesLeft)
     return length;
 }
 
-/* This function calculates the Heuristic value for the remaining path from the current city 
-        to the remaining unvisited cities and back to the source city */
+/*
+    below function calculating the values of the heuristic function for unvisited path from current city to andthen get back to the starting node
+*/
 int calculateHeuristic(vector<int> vertices, vector<char> nodesLeft, int currentCityForExpansion)
 {
     int size = vertices.size();
@@ -179,19 +192,19 @@ int calculateHeuristic(vector<int> vertices, vector<char> nodesLeft, int current
     int mst = generateMST(vertices, nodesLeft),
         nearestUnvisitedCityDistance = INT_MAX,
         nearestToSource = INT_MAX,
-        thisDistance1,
-        thisDistance2;
+        newdis1,
+        newdis2;
 
     for (int i = 0; i < size; i++)
     {
-        thisDistance1 = distance(parentCtiy[i], currentCityForExpansion); // this is the distancefrom the unvisited city to the currentCityForExpansion
-        thisDistance2 = distance(parentCtiy[i], 0);                       // this is the distance from the source
+        newdis1 = distance(parentCtiy[i], currentCityForExpansion);  // newdis1 containes the distance from unvisited node from the source
+        newdis2 = distance(parentCtiy[i], 0);                  
 
-        if (thisDistance1 < nearestUnvisitedCityDistance)
-            nearestUnvisitedCityDistance = thisDistance1;
+        if (newdis1 < nearestUnvisitedCityDistance)
+            nearestUnvisitedCityDistance = newdis1;
 
-        if (thisDistance2 < nearestToSource)
-            nearestToSource = thisDistance2;
+        if (newdis2 < nearestToSource)
+            nearestToSource = newdis2;
     }
 
     return mst + nearestToSource + nearestUnvisitedCityDistance;
@@ -200,9 +213,9 @@ int calculateHeuristic(vector<int> vertices, vector<char> nodesLeft, int current
 int optimumCost = INT_MAX, expandedNodes = 1, totalNumofNodes = 1;
 
 /* This function Creates a new City to be explored */
-Vertex createNode(int cityIndex, string currPath, int citiesToBeVisited, char cityName, int heuristicCost, int aCost, int totalCost, string state, vector<int> citiesLeft)
+Vertex createNode(int cityIndex, string currPath, int citiesToBeVisited, char cityName, int hc, int aCost, int tc, string state, vector<int> citiesLeft)
 {
-    Vertex node(cityIndex, currPath, citiesToBeVisited, cityName, heuristicCost, aCost, totalCost, state, citiesLeft);
+    Vertex node(cityIndex, currPath, citiesToBeVisited, cityName, hc, aCost, tc, state, citiesLeft);
     return node;
 }
 
@@ -217,7 +230,7 @@ string aStarSearch()
     vector<char> namesOfCitiesYettoVisit;
     string currPath, state, npathSoFar, nstate, res;
 
-    while (!pq.empty() && pq.top().totalCost < optimumCost)
+    while (!pq.empty() && pq.top().tc < optimumCost)
     {
         current = pq.top();
         pq.pop();
@@ -228,7 +241,7 @@ string aStarSearch()
 
         if (current.citiesToBeVisited == 0)
         {
-            int tcost = current.actualCost + distance(current.cityIndex, 0);
+            int tcost = current.ac + distance(current.cityIndex, 0);
 
             if (tcost < optimumCost)
                 optimumCost = tcost, res = current.currPath;
@@ -236,13 +249,13 @@ string aStarSearch()
             continue;
         }
 
-        if (closedList.find(state) != closedList.end() && closedList[state] < current.totalCost)
+        if (closedList.find(state) != closedList.end() && closedList[state] < current.tc)
             continue;
 
-        if (closedList.find(state) != closedList.end() && closedList[state] > current.totalCost)
-            closedList[state] = current.totalCost;
+        if (closedList.find(state) != closedList.end() && closedList[state] > current.tc)
+            closedList[state] = current.tc;
         else if (closedList.find(state) == closedList.end())
-            closedList[state] = current.totalCost;
+            closedList[state] = current.tc;
 
         expandedNodes++;
         for (int next : vertices)
@@ -260,7 +273,7 @@ string aStarSearch()
 
             hn = calculateHeuristic(nextUnvisitedCities, namesOfCitiesYettoVisit, next);
 
-            aCost = current.actualCost + distance(current.cityIndex, next);
+            aCost = current.ac + distance(current.cityIndex, next);
             tCost = hn + aCost;
 
             cityName = (next > 25 ? 'a' + next - 26 : 'A' + next);
